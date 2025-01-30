@@ -8,3 +8,4 @@ In a nutshell, .bat file runs via command line and automatically extracts inform
 4. Modifies an excel file based on metric data.
 
 This code relieves the manual labor to obtain repetitive metrics and can be scheduled to execute daily at specific times using Windows Task Scheduler.
+This code was written for a SPECIFIC purpose and will not plug-and-play at all; this code serves as an inspiration / base knowledge for creating similar automation tasks for other applications.
