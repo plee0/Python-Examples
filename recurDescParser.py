@@ -70,6 +70,9 @@ class recDescent:
         # tokens from lexer tokenization of the expression
         self.tokens = []
 
+        # position of current token being examined
+        self.position = 0
+
     # lex - tokenize the expression into a list of tokens
     # the tokens are stored in a list which can be accessed by self.tokens
     # do NOT edit any piece of code in this function
@@ -81,10 +84,8 @@ class recDescent:
                            list(map((lambda x: x.strip().lower()), self.tokens))))    
     
     # parser - determine if the input expression is valid or not
-    # delete tokens after parsing so they do not get parsed again
-    def parser(self, operation):
-        #TODO
-        pass
+    def parser(self):
+        return self.expression()
 
     # validate() function will return True if the expression is valid, False otherwise 
     # do NOT change the method signature 
@@ -96,129 +97,174 @@ class recDescent:
         # and go from there
         
         self.lex()
-
+        
         # TODO: call the topmost parsing procedure and go from there
-        valid_parenthesis = self.parenthesis()
-        valid_dash = self.dash()
-        valid_ops = self.operators()
-        validity_logs = self.logicals()
-        if (valid_parenthesis and valid_dash and valid_ops and validity_logs):
-            return True
-        else:
-            return False
+        return self.parser()
 
     # TODO: Write your parsing procedures corresponding to the grammar rules - follow Figure 5.17
     
-    # I think the methodology here is bad. Maybe we want to just use recursion to return only the expressions, and then perform all the checks in validate()
-    # Or remove the tokens after parsing to ensure they don't get checked again?? Maybe there should be a parser function that accepts the term and
-    # returns false or true depending on whether it's a valid statement
-    # When tokens are deleted and replaced, the initial loop to obtain positions no longer works and can become out of bounds
+    # move position to next token
+    def nextToken(self):
+        self.position += 1
 
-    def parenthesis(self):
-        found_parentheses = False
-        # arrays to monitor locations of parentheses
-        parentheses_open = []
-        parentheses_close = []
-        # loop through to find all instances of parentheses
-        for index, token in enumerate(self.tokens):
-            if token == '(':
-                parentheses_open.append(index)
-                found_parentheses = True
-            if token == ')':
-                parentheses_close.append(index)
-                found_parentheses = True
+    # check for an open parentheses, then advance and begin to check again
+    # def parenthesis_open(self):
+        
+    def expression(self):
+        if self.tokens[self.position] == '(':
+            self.nextToken() # go to next position after open parenthesis
+            self.parser() # begin parsing / validating the upcoming term
 
-        # parentheses must be found
-        if found_parentheses:
-            # number of parentheses must match or expression is false
-            if len(parentheses_close) != len(parentheses_open):
-                return False
+            if self.position+1 < len(self.tokens): # There is more to do
+                # Continue checking additional terms
+                if self.parser():
+                
+                    # upon exiting the additional parsing
+                    if self.tokens[self.position] == ')':
+                        # There is also no guarantee that the closing parentheses is the end. You may need to check for other tokens trailing the closing parenthesis
+                        if self.position+1 < len(self.tokens):
+                            self.nextToken()
+                            return self.parser() # There is more to do
+                        else:
+                        # The last token is indeed the final closing parenthesis
+                            return True
+                elif self.tokens[self.position] == ')':
+                    # if closing parenthesis, and not end of token list
+                    self.nextToken() # advance
+                    return self.parser() # continue parsing
+                else:
+                    return False
+            
+            # If you have reached the end of the token list, check for closing parenthesis
+            elif self.tokens[self.position] == ')':
+                return True
             else:
-                # the first open parenthesis (index 0 + 1) should be terminated by the last closing parenthesis (index -1 to get last detected instance)
-                # add +1 to omit the first open parenthesis and start building from between the parentheses
-                # new_expr is all the contents between the parentheses
-                new_expr = " ".join(self.tokens[i] for i in range(parentheses_open[0]+1, parentheses_close[-1]))
-                del self.tokens[parentheses_open[0]:parentheses_close[-1]+1]
-                # self.tokens.insert(parentheses_open[0],'term')
-                recurs = recDescent(new_expr)
-                return recurs.validate()
+                return False # otherwise, return False if the end of the token list is reached without detecting a closing parenthesis
         else:
-            # default return True if no errors found with parsing parentheses
-            return True
-    
-    # All dash operators and relational operators have the same precedence
-    # Define them here
-    def dash(self):
-        operator_dash = "-"
+        # then, start evaluating the expression
+            return self.evaluate()
 
-    def operators(self):
+    def evaluate(self):
+        relops = ["<", ">", "<=", ">=", "==", "!=", "not"]
+        logicOps = ["and", "or", "nand"]
         
+        # option 1: int - int
+        if self.tokens[self.position].isdigit():
+            return self.dashTerm()
         
-        operator_relational = ["<", "<=", ">", ">=", "==", "!=", "not"]
-        # arrays to monitor instances and locations of operators
-        dashOps = []
-        relOps = []
-        #loop through tokens list and find all operators
-        for index, token in enumerate(self.tokens):
-            if token in operator_dash:
-                dashOps.append(index)
-            if token in operator_relational:
-                relOps.append(index)
+        # option 2: relop int
+        elif self.tokens[self.position] in relops:
+            return self.relopTerm()
         
-        # dash operator found. check validity.
-        if dashOps:
-            for i in range(len(dashOps)):
-                # dash operator must be of form term dash term, so there must be at least three terms
-                if len(self.tokens) < 3:
-                    del self.tokens[dashOps[0]-1:dashOps[0]+2]
-                    return False
-                # the terms to the left and right of the dash operator must be numbers. Check if can be converted to digits
-                elif not self.tokens[dashOps[i]-1].isdigit() or not self.tokens[dashOps[i]+1].isdigit():
-                    del self.tokens[dashOps[0]-1:dashOps[0]+2]
-                    return False
-            del self.tokens[dashOps[0]-1:dashOps[0]+2]
-        # relational operator found. check validity.
-        if relOps:
-            for i in range(len(relOps)):
-                # dash operator must be of form relop int, so there must be only two terms
-                if len(self.tokens) < 2:
-                    del self.tokens[relOps[0]:relOps[0]+2]
-                    return False
-                # the term to the right of the relational operator must be a number. Check if can be converted to digits
-                elif not self.tokens[relOps[i]+1].isdigit():
-                    del self.tokens[relOps[0]:relOps[0]+2]
-                    return False
-            # Remove tokens after parsing
-            del self.tokens[relOps[0]:relOps[0]+2]
-        # Otherwise, the expression should be true
-        return True
-    def logicals(self):
-        # TODO
-        operator_logical = ["and", "or", "nand"]
-        logOps = []
-        for index, token in enumerate(self.tokens):
-            if token in operator_logical:
-                logOps.append(index)
+        # option 3: logical operator
+        elif self.tokens[self.position] in logicOps:
+            return self.logicalTerm()
         
-        #if any logical operators found
-        if logOps:
-            # TODO
-            pass
-        # default return True if no logical operators found
-        return True
+        # Lastly, not a valid term
+        else:
+            return False
+    
+    # Evaluate whether the term matches the dash operator, binary infix, form
+    # Note that '=6' tokenizes to just the number 6 ONLY.
+    def dashTerm(self):
+        
+        self.nextToken()
+        # Check if there is a next term
+        if self.position < len(self.tokens):
+            # go to next term, which SHOULD BE A DASH
+            if self.tokens[self.position] == "-":
+                pass
+            else:
+                return False
+        else:
+            return False
+        
+        # go to next term after the dash, which should be a integer!
+        self.nextToken()
+
+        # First check if there is even a term that comes after
+        if self.position < len(self.tokens):
+            if self.tokens[self.position].isdigit():
+                self.nextToken()
+                return True
+                # end up at the next token for evaluation
+            else:
+                return False
+        else:
+            return False
+
+    # Evaluate whether the term matches the relational operator, unary prefix form
+    def relopTerm(self):
+        # go to next term, which SHOULD BE A INT
+        self.nextToken()
+        # First check if there is even a term that comes after
+        if self.position < len(self.tokens):
+            if self.tokens[self.position].isdigit():
+                self.nextToken()
+                return True
+                # end up at the next token for evaluation
+            else:
+                return False # the term after the relational operator was invalid
+        else:
+            return False # there was a relational term with nothing after it
+    
+    # Evaluate whether the term matches the logical operator, binary infix, form
+    def logicalTerm(self):
+        if self.position < len(self.tokens):
+                self.nextToken() # advance to next after logic operator and begin evaluation
+                # TODO - the code is failing for the test case where there is a logic operator at the end (e.g. (!=5) and)
+                self.parser()
+                return True
+        else:
+            return False
+
 
 # sample test code, use examples from the prompt for more testing 
 # positive tests: validation of the expression returns True
-# negative tests: validation of the expression returns False  
 
-r = recDescent('(5 - 100)') 
+r = recDescent('7-17')
 print(r.validate()) # should return True
 
-r = recDescent('5 - ') 
-print(r.validate()) # should return False
-
-r = recDescent('> 90')
+r = recDescent('>90')
 print(r.validate()) # should return True
 
 r = recDescent('(1 - 100 and not 50) or > 200')
 print(r.validate()) # should return True
+
+r = recDescent('(7 - 17) or > 90')
+print(r.validate()) # should return True
+
+r = recDescent('> 50 or == 20')
+print(r.validate()) # should return True
+
+r = recDescent('1 - 100 and != 50')
+print(r.validate()) # should return True
+
+r = recDescent('(5 - 100) and (not 50) or (>= 130 or (2 - 4))')
+print(r.validate()) # should return True
+
+#####################
+# negative tests: validation of the expression returns False  
+r = recDescent('>')
+print(r.validate()) # should return False
+
+r = recDescent('2--4')
+print(r.validate()) # should return False
+
+r = recDescent('-7')
+print(r.validate()) # should return False
+
+r = recDescent('7-')
+print(r.validate()) # should return False
+
+r = recDescent('=6')
+print(r.validate()) # should return False
+
+r = recDescent('(!=5) and')
+print(r.validate()) # should return False
+
+r = recDescent('2-4 and ><300')
+print(r.validate()) # should return False
+
+r = recDescent('>= 5) nand < 10')
+print(r.validate()) # should return False
